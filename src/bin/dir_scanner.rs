@@ -1,42 +1,44 @@
-use std::{env, time::Duration};
+use clap::Parser;
 use reqwest::Client;
+use std::{fs, time::Duration};
 use tokio::sync;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>>{
+#[derive(Parser, Debug)]
+#[clap(version)]
 
-    let mut args = env::args().skip(1);
+struct Args {
+    #[arg(short = 'u', long = "url")]
+    url: String,
 
-    if args.len() < 2 { return Err("Try: SolarBuster -u <your_url> -w <path_to_wordlist>".into()); } 
-    
-    let mut url: Option<String> = None; 
-    let mut wordlist: Option<String> = None;
-
-    while let Some(arg) = args.next() {
-
-        match arg.as_str() {
-
-            "-u" => url = args.next(),
-
-            "-w" => wordlist = args.next(),
-
-            _ => {}
-        }
-    }
- 
-    dir_scanner(url.expect("Wrong type"), wordlist.expect("Wrong type")).await;
-
-    Ok(())
+    #[arg(short = 'w', long = "wordlist")]
+    wordlist: String,
 }
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
+    let url = args.url;
+    let wordlist = args.wordlist;
 
-async fn dir_scanner(base_url: String, wordlist: String) {
+    let _ = request_sender(url, wordlist).await;
+}
+async fn request_sender(url: String, wordlist: String) -> Result<(), reqwest::Error> {
+    let wl_content = fs::read_to_string(wordlist).expect("The program cannot read the file");
 
     let client = Client::builder()
         .user_agent("SolarBuster")
         .pool_max_idle_per_host(100)
-        .timeout(Duration::from_millis(300))
-        .connect_timeout(Duration::from_millis(80))
+        .timeout(Duration::from_secs(5))
+        .connect_timeout(Duration::from_secs(2))
         .build()
         .unwrap();
 
+    for w in wl_content.lines() {
+        let full_url = format!("{}/{}", url.trim_end_matches('/'), w.trim());
+
+        let res = client.get(&full_url).send().await?;
+
+        println!("status: {}\nurl: {}", res.status(), full_url);
+    }
+
+    Ok(())
 }
