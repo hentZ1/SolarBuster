@@ -1,20 +1,19 @@
 use clap::Parser;
 use reqwest::Client;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use tokio::{
     fs::File,
-    io::{AsyncBufRead, AsyncBufReadExt, BufReader},
-    spawn,
-    sync::{
-        broadcast::Receiver,
-        mpsc::{Sender, channel},
-    },
+    io::{AsyncBufReadExt, BufReader},
+    sync::{Semaphore, mpsc},
 };
 
 #[derive(Parser, Debug)]
-#[clap(version)]
-
+#[command(
+    name = "SolarBuster",
+    version,
+    about = "Fast web directory enumerator in Rust"
+)]
 struct Args {
     #[arg(short = 'u', long = "url")]
     url: String,
@@ -24,6 +23,7 @@ struct Args {
 }
 
 const QUEUE_SIZE: usize = 1000;
+const WORKERS: usize = 50;
 
 #[tokio::main]
 async fn main() {
@@ -31,20 +31,32 @@ async fn main() {
     let url = args.url;
     let path = args.path;
 
-    //o channel precisa ser asincrono porem quando fica asincrono tudo piora, porfavor faça o
-    //channel aceitar o numero de workers da constante e faça com que nao quebre tudo :(
+    let (tx, mut rx) = mpsc::channel::<String>(QUEUE_SIZE);
 
-    let (tx, rx) = tokio::sync::mpsc::channel(QUEUE_SIZE);
-    for i in 0..50 {
-        let rx_clone = rx.clone();
+    let sem = Arc::new(Semaphore::new(WORKERS));
 
-        spawn(worker(url, i, rx_clone));
+    tokio::spawn(reader(path, tx));
+
+    let client = Client::builder()
+        .user_agent("SolarBuster")
+        .pool_max_idle_per_host(100)
+        .timeout(Duration::from_secs(5))
+        .connect_timeout(Duration::from_secs(2))
+        .build()
+        .unwrap();
+
+    while let Some(word) = rx.recv().await {
+        let permit = sem.clone().acquire_owned().await.unwrap();
+        let client = client.clone();
+        let url = url.clone();
+        tokio::spawn(async move {
+            worker(client, url, word).await;
+            drop(permit);
+        });
     }
-
-    reader(path, tx).await;
 }
 
-async fn reader(path: String, tx: Sender<String>) {
+async fn reader(path: String, tx: mpsc::Sender<String>) {
     let file = File::open(path).await.unwrap();
     let reader = BufReader::new(file);
     let mut lines = reader.lines();
@@ -61,27 +73,13 @@ async fn reader(path: String, tx: Sender<String>) {
     }
 }
 
-async fn worker(url: String, id: i32, mut rx: Receiver<String>) {
-    let client = Client::builder()
-        .user_agent("SolarBuster")
-        .pool_max_idle_per_host(100)
-        .timeout(Duration::from_secs(5))
-        .connect_timeout(Duration::from_secs(2))
-        .build()
-        .unwrap();
+async fn worker(client: Client, url: String, word: String) {
+    let full_url = format!("{}{}", url, word);
 
-    //aqui esta dando erro de tipos diferentes nao sei pq
-    while let Some(word) = rx.recv().await {
-        let full_url = format!("{}/{}", url, word);
-        match client.get(&full_url).send().await {
-            Ok(resp) => {
-                let status = resp.status();
-
-                if status.is_success() {
-                    println!("[{}] {} {}", id, url, status);
-                }
-            }
-            Err(_) => {}
+    if let Ok(resp) = client.get(&full_url).send().await {
+        let status = resp.status();
+        if status.is_success() {
+            println!("{} {}", full_url, status);
         }
     }
 }
