@@ -1,7 +1,7 @@
 use clap::Parser;
+use colored::*;
 use reqwest::Client;
 use std::{sync::Arc, time::Duration};
-
 use tokio::{
     fs::File,
     io::{AsyncBufReadExt, BufReader},
@@ -56,6 +56,14 @@ async fn main() {
     }
 }
 
+async fn measure_noise(url: String, client: Client) -> Option<u64> {
+    let fake_url = format!("{}{}", url, "THIS_IS_NOT_A_VALID_URL_ON_PURPOSE");
+
+    let resp = client.head(&fake_url).send().await.ok()?;
+
+    resp.content_length()
+}
+
 async fn reader(path: String, tx: mpsc::Sender<String>) {
     let file = File::open(path).await.unwrap();
     let reader = BufReader::new(file);
@@ -76,10 +84,13 @@ async fn reader(path: String, tx: mpsc::Sender<String>) {
 async fn worker(client: Client, url: String, word: String) {
     let full_url = format!("{}{}", url, word);
 
-    if let Ok(resp) = client.get(&full_url).send().await {
-        let status = resp.status();
-        if status.is_success() {
-            println!("{} {}", full_url, status);
-        }
+    let noise = measure_noise(url, client.clone()).await.unwrap_or(0);
+
+    if let Ok(resp) = client.get(&full_url).send().await
+        && resp.status().is_success()
+        && let Some(len) = resp.content_length()
+        && len != noise
+    {
+        println!("[{}]{}", resp.status().to_string().green(), full_url);
     }
 }
