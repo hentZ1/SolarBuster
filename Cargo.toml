@@ -9,5 +9,7 @@ edition = "2024"
 arg = "0.4.1"
 clap = { version = "4.5.58", features = ["derive"] }
 colored = "3.1.1"
+figlet-rs = "0.1.5"
+indicatif = "0.18.4"
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["full"] }

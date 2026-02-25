@@ -1,9 +1,11 @@
 use clap::Parser;
 use colored::*;
+use figlet_rs::FIGfont;
+use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use std::{sync::Arc, time::Duration};
 use tokio::{
-    fs::File,
+    fs::{self, File},
     io::{AsyncBufReadExt, BufReader},
     sync::{Semaphore, mpsc},
 };
@@ -46,6 +48,22 @@ async fn main() {
     let url = args.url;
     let path = args.path;
     let workers = args.workers;
+    let ttl_finish = fs::read_to_string(&path)
+        .await
+        .expect("failed to ProgressBar read wordlist")
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count() as u64;
+
+    let pb = Arc::new(ProgressBar::new(ttl_finish));
+
+    banner(url.clone(), path.clone());
+
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{bar:40.red/orange} {pos}/{len} ({percent}%) ETA:{eta}")
+            .unwrap(),
+    );
 
     let (tx, mut rx) = mpsc::channel::<String>(QUEUE_SIZE);
 
@@ -61,15 +79,34 @@ async fn main() {
         .build()
         .unwrap();
 
+    let noise: u64 = measure_noise(url.clone(), client.clone())
+        .await
+        .unwrap_or(0);
+
     while let Some(word) = rx.recv().await {
         let permit = sem.clone().acquire_owned().await.unwrap();
         let client = client.clone();
         let url = url.clone();
+        let pb = pb.clone();
         tokio::spawn(async move {
-            worker(client, url, word).await;
+            worker(client, url, word, noise, pb).await;
             drop(permit);
         });
     }
+    pb.finish_with_message("Scan complete");
+}
+
+fn banner(url: String, wordlist: String) {
+    let standard_font = FIGfont::standard().unwrap();
+    let figure = standard_font.convert("SolarBuster").unwrap();
+    println!(
+        "/{}/\n{}\n/{}/\n",
+        "*".repeat(100),
+        figure.to_string().bright_red(),
+        "*".repeat(100)
+    );
+    println!("scanning: {}\n{}\n", url, "-".repeat(100));
+    println!("wordlist used: {}\n{}\n", wordlist, "-".repeat(100));
 }
 
 async fn measure_noise(url: String, client: Client) -> Option<u64> {
@@ -101,16 +138,30 @@ async fn reader(path: String, tx: mpsc::Sender<String>) {
     }
 }
 
-async fn worker(client: Client, url: String, word: String) {
-    let full_url = format!("{}{}", url, word);
+async fn worker(client: Client, url: String, word: String, noise: u64, pb: Arc<ProgressBar>) {
+    let full_url = format!("{}/{}", url.trim_end_matches('/'), word);
 
-    let noise = measure_noise(url, client.clone()).await.unwrap_or(0);
+    let mut attempts = 0;
+    let max_retries = 3;
 
-    if let Ok(resp) = client.head(&full_url).send().await
-        && resp.status().is_success()
-        && let Some(len) = resp.content_length()
-        && len != noise
-    {
-        println!("[{}]{}", resp.status().to_string().green(), full_url);
+    while attempts < max_retries {
+        match client.head(&full_url).send().await {
+            Ok(resp) => {
+                if resp.status().is_success()
+                    && let Some(len) = resp.content_length()
+                    && len != noise
+                {
+                    println!("[{}] {}", resp.status().to_string().green(), full_url);
+                }
+                break;
+            }
+            Err(_) => {
+                attempts += 1;
+                if attempts >= max_retries {
+                    break;
+                }
+            }
+        }
     }
+    pb.inc(1);
 }
