@@ -43,11 +43,14 @@ struct Args {
 const QUEUE_SIZE: usize = 1000;
 
 #[tokio::main]
+
 async fn main() {
     let args = Args::parse();
     let url = args.url;
     let path = args.path;
     let workers = args.workers;
+
+    //total ate acabar as palavras da wordlist
     let ttl_finish = fs::read_to_string(&path)
         .await
         .expect("failed to ProgressBar read wordlist")
@@ -56,7 +59,6 @@ async fn main() {
         .count() as u64;
 
     let pb = Arc::new(ProgressBar::new(ttl_finish));
-
     banner(url.clone(), path.clone());
 
     pb.set_style(
@@ -64,13 +66,14 @@ async fn main() {
             .template("{bar:40.red/orange} {pos}/{len} ({percent}%) ETA:{eta}")
             .unwrap(),
     );
-
     let (tx, mut rx) = mpsc::channel::<String>(QUEUE_SIZE);
 
     let sem = Arc::new(Semaphore::new(workers));
 
+    //lê 1000 palavras a manda para o worker mandar requests
     tokio::spawn(reader(path, tx));
 
+    //builda o client e define regras para a requests
     let client = Client::builder()
         .user_agent("SolarBuster")
         .pool_max_idle_per_host(100)
@@ -79,10 +82,14 @@ async fn main() {
         .build()
         .unwrap();
 
+    //manda uma requests falsa para saber o tamanho do "barulho" feito por ela para depois o worker
+    //saber oq é falso e oq é um status code real, assim evitando que os sites voltem sempre
+    //codigos de status falsos
     let noise: u64 = measure_noise(url.clone(), client.clone())
         .await
         .unwrap_or(0);
 
+    //spawna os workers ate o reader nao puder ler mais nada, ou seja ate a wordlist acabar
     while let Some(word) = rx.recv().await {
         let permit = sem.clone().acquire_owned().await.unwrap();
         let client = client.clone();
