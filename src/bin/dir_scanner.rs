@@ -85,9 +85,7 @@ async fn main() {
     //manda uma requests falsa para saber o tamanho do "barulho" feito por ela para depois o worker
     //saber oq é falso e oq é um status code real, assim evitando que os sites voltem sempre
     //codigos de status falsos
-    let noise: u64 = measure_noise(url.clone(), client.clone())
-        .await
-        .unwrap_or(0);
+    let noise: Option<u64> = measure_noise(url.clone(), client.clone()).await;
 
     //spawna os workers ate o reader nao puder ler mais nada, ou seja ate a wordlist acabar
     while let Some(word) = rx.recv().await {
@@ -119,9 +117,10 @@ fn banner(url: String, wordlist: String) {
 async fn measure_noise(url: String, client: Client) -> Option<u64> {
     let fake_url = format!("{}{}", url, "THIS_IS_NOT_A_VALID_URL_ON_PURPOSE");
 
-    let resp = client.head(&fake_url).send().await.ok()?;
+    let resp = client.get(&fake_url).send().await.ok()?;
 
-    resp.content_length()
+    let bytes = resp.bytes().await.ok()?;
+    Some(bytes.len() as u64)
 }
 
 async fn reader(path: String, tx: mpsc::Sender<String>) {
@@ -145,20 +144,32 @@ async fn reader(path: String, tx: mpsc::Sender<String>) {
     }
 }
 
-async fn worker(client: Client, url: String, word: String, noise: u64, pb: Arc<ProgressBar>) {
+async fn worker(
+    client: Client,
+    url: String,
+    word: String,
+    noise: Option<u64>,
+    pb: Arc<ProgressBar>,
+) {
     let full_url = format!("{}/{}", url.trim_end_matches('/'), word);
 
     let mut attempts = 0;
     let max_retries = 3;
 
     while attempts < max_retries {
-        match client.head(&full_url).send().await {
+        match client.get(&full_url).send().await {
             Ok(resp) => {
-                if resp.status().is_success()
-                    && let Some(len) = resp.content_length()
-                    && len != noise
-                {
-                    println!("[{}] {}", resp.status().to_string().green(), full_url);
+                let status = resp.status();
+                if status.is_success() || status.is_redirection() {
+                    if let Ok(bytes) = resp.bytes().await {
+                        let len = bytes.len() as u64;
+                        let is_noise = noise.map_or(false, |n| n > 0 && len == n);
+                        if !is_noise {
+                            println!("[{}] {}", status.to_string().green(), full_url);
+                        }
+                    } else {
+                        println!("[{}] {}", status.to_string().green(), full_url);
+                    }
                 }
                 break;
             }
