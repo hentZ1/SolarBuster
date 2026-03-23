@@ -3,6 +3,9 @@ name = "SolarBuster"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "SolarBuster"
+path = "src/bin/dir_scanner.rs"
 [dependencies]
 
 
