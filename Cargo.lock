@@ -3,19 +3,6 @@
 version = 4
 
 [[package]]
-name = "SolarBuster"
-version = "0.1.0"
-dependencies = [
- "arg",
- "clap",
- "colored",
- "figlet-rs",
- "indicatif",
- "reqwest",
- "tokio",
-]
-
-[[package]]
 name = "anstream"
 version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -70,26 +57,6 @@ name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
-
-[[package]]
-name = "arg"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "568bbed0b9810cd4b43c8560ff3c5d2318b29d78fc314818d156bbed7075d394"
-dependencies = [
- "arg-derive",
-]
-
-[[package]]
-name = "arg-derive"
-version = "0.4.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffd82c44f3df2d844261687b4b6dda545b9c855f0915ed4fd742c6ed032f7ae3"
-dependencies = [
- "quote",
- "syn",
- "tabwriter",
-]
 
 [[package]]
 name = "atomic-waker"
@@ -1209,6 +1176,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-buster"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "colored",
+ "figlet-rs",
+ "indicatif",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1276,15 +1255,6 @@ checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
 dependencies = [
  "core-foundation-sys",
  "libc",
-]
-
-[[package]]
-name = "tabwriter"
-version = "1.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fce91f2f0ec87dff7e6bcbbeb267439aa1188703003c6055193c821487400432"
-dependencies = [
- "unicode-width",
 ]
 
 [[package]]
