@@ -17,19 +17,19 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: Solarbuster-Linux
-            asset_name: Solarbuster-linux-x86_64
+            artifact_name: solarbuster
+            asset_name: solarbuster-linux-x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: Solarbuster-Windows.exe
+            artifact_name: solarbuster.exe
             asset_name: solarbuster-windows-x86_64.exe
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: Solarbuster-Macos-Darwin
+            artifact_name: solarbuster
             asset_name: solarbuster-macos-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: Solarbuster-Aarch64
+            artifact_name: solarbuster
             asset_name: solarbuster-macos-arm64
 
     steps:
