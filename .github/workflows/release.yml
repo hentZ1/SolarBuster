@@ -1,5 +1,8 @@
 name: Release
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_run:
     workflows: ["Rust"]
     types: [completed]
@@ -8,7 +11,7 @@ on:
 jobs:
   build:
     name: Build & Upload Artifacts
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -21,11 +24,11 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact_name: SolarBuster.exe
             asset_name: SolarBuster-windows-x86_64.exe
-          - os: macos-latest
+          - os: macos-14
             target: x86_64-apple-darwin
             artifact_name: SolarBuster
             asset_name: SolarBuster-macos-x86_64
-          - os: macos-latest
+          - os: macos-14
             target: aarch64-apple-darwin
             artifact_name: SolarBuster
             asset_name: SolarBuster-macos-arm64
@@ -61,9 +64,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_COUNT=$(gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' | wc -l)
-          NEXT_VERSION=$((TAG_COUNT + 1))
-          echo "tag=v${NEXT_VERSION}" >> $GITHUB_OUTPUT
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            TAG_COUNT=$(gh api repos/${{ github.repository }}/tags --paginate --jq '.[].name' | wc -l)
+            NEXT_VERSION=$((TAG_COUNT + 1))
+            echo "tag=v${NEXT_VERSION}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
