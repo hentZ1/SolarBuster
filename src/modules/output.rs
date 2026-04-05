@@ -4,7 +4,9 @@ use reqwest::StatusCode;
 
 pub fn banner(url: &str, wordlist: &str) {
     let standard_font = FIGfont::standard().unwrap();
-    let figure = standard_font.convert("SolarBuster").unwrap();
+    let figure = standard_font
+        .convert("SolarBuster")
+        .expect("The banner could not be printed");
     println!(
         "/{}/\n{}\n/{}/\n",
         "*".repeat(100),
