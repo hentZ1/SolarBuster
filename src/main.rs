@@ -10,14 +10,14 @@ use solar_buster::prelude::*;
 const QUEUE_SIZE: usize = 1000;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let pb = Arc::new(build_progress_bar());
 
     banner(&args.url, &args.path);
 
-    let client = build_client().unwrap();
+    let client = build_client()?;
 
     let sem = Arc::new(Semaphore::new(args.workers));
     let (tx, mut rx) = mpsc::channel::<String>(QUEUE_SIZE);
@@ -35,4 +35,5 @@ async fn main() {
             dir_scanner(client, url, word, noise, pb).await;
         });
     }
+    Ok(())
 }

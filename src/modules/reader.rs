@@ -1,9 +1,9 @@
 use crate::prelude::*;
 
-pub async fn read(path: String, tx: mpsc::Sender<String>) {
+pub async fn read(path: String, tx: mpsc::Sender<String>) -> Result<()> {
     let file = File::open(&path)
         .await
-        .expect("could not find or read file");
+        .with_context(|| format!("could not open the wordlist: {}", path))?;
 
     let reader = BufReader::new(file);
     let mut lines = reader.lines();
@@ -17,4 +17,5 @@ pub async fn read(path: String, tx: mpsc::Sender<String>) {
             break;
         }
     }
+    Ok(())
 }

@@ -3,10 +3,11 @@ use figlet_rs::FIGfont;
 use reqwest::StatusCode;
 
 pub fn banner(url: &str, wordlist: &str) {
-    let standard_font = FIGfont::standard().unwrap();
+    let standard_font = FIGfont::standard().expect("could not load the default FIGfont");
     let figure = standard_font
         .convert("SolarBuster")
         .expect("The banner could not be printed");
+
     println!(
         "/{}/\n{}\n/{}/\n",
         "*".repeat(100),
